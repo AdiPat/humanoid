@@ -176,3 +176,4 @@ cache
 .DS_Store
 outputs/
 chroma.sqlite3
+basic_run_result*
