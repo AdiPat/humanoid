@@ -19,6 +19,8 @@ from rich.pretty import Pretty  # Add this import for pretty printing
 from crewai import Agent, Task, Crew
 from crewai.crew import CrewOutput
 
+from .tooling import get_available_tools
+
 
 class PreparedCrew(BaseModel):
     """Prepared crew model."""
@@ -155,12 +157,18 @@ class Humanoid:
         for task_config in tasks_config:
             task_config_without_agent = copy.deepcopy(task_config.model_dump())
             del task_config_without_agent["agent"]
-            task_config_without_agent["tools"] = []  # TODO: Implement tools
+            del task_config_without_agent["tools"]
+            ## Initialize agent with tools
+            available_tools = get_available_tools()
+            tool_names = available_tools.tool_names
+            rprint("🔧 [bold blue]Available tools:[/bold blue]")
+            rprint(Pretty(tool_names, expand_all=True))  # Pretty print tool names
             agent = None
             for a in agents_config:
                 if a.id == task_config.agent.id:
-                    agent_config_without_id = copy.deepcopy(a.dict())
+                    agent_config_without_id = copy.deepcopy(a.model_dump())
                     del agent_config_without_id["id"]
+                    agent_config_without_id["tools"] = available_tools.tool_instances
                     agent = Agent(**agent_config_without_id, llm="gpt-4o")
                     break
             task = Task(**task_config_without_agent, agent=agent)
