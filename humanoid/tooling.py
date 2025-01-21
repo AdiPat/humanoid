@@ -10,6 +10,7 @@ import os
 import logging
 import traceback
 import enum
+from pydantic import BaseModel
 from crewai.tools import BaseTool
 from crewai_tools import (
     BrowserbaseLoadTool,
@@ -94,7 +95,12 @@ def get_tools_list() -> list[str]:
     return tools_list
 
 
-def get_available_tools() -> dict:
+class AvailableTools(BaseModel):
+    tool_instances: list[BaseTool]
+    tool_names: list[str]
+
+
+def get_available_tools() -> AvailableTools:
     """
     Retrieves the list of available tools and initializes them.
     - Gets a list of all available tools.
@@ -102,16 +108,18 @@ def get_available_tools() -> dict:
     - Returns a dictionary of all available tools.
     """
     all_tools = get_tools_list()
-    tools = {}
+    tools = []
+    tool_names = []
     for tool in all_tools:
         try:
-            tool = get_tool(tool_id=tool, args={})
-            if tool:
-                tools[tool] = tool
+            tool_instance = get_tool(tool_id=ToolType[tool], args={})
+            if tool_instance:
+                tools.append(tool_instance)
+                tool_names.append(tool)
         except Exception as e:
             logger.error(f"Error while initializing tool {tool}: {str(e)}")
             logger.error(traceback.format_exc())
-    return tools
+    return AvailableTools(tool_instances=tools, tool_names=tool_names)
 
 
 def get_tool(tool_id: ToolType, args: dict) -> BaseTool:
