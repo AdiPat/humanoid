@@ -39,6 +39,14 @@ Humanoid is a simple, natural language interface for orchestrating autonomous ag
 
 You can run the Humanoid by executing the `basic_run.py` script. This script will prompt you to enter a natural language prompt to summon autonomous agents.
 
+First, **install** humanoid as a pip package. 
+
+```sh
+pip install .
+```
+
+**Then run the example.**
+
 ```sh
 python examples/basic_run.py
 ```
