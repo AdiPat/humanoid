@@ -8,14 +8,24 @@
 import os
 import copy
 import traceback
-from typing import Union, Any
+from typing import Union, Any, List
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from openai import OpenAI
+from rich import print as rprint  # Add this import for rich printing
+from rich.pretty import Pretty  # Add this import for pretty printing
 
 from crewai import Agent, Task, Crew
 from crewai.crew import CrewOutput
+
+
+class PreparedCrew(BaseModel):
+    """Prepared crew model."""
+
+    crew: Crew
+    tasks: List[Task]
+    input_data: dict
 
 
 class AgentConfig(BaseModel):
@@ -112,51 +122,59 @@ class Humanoid:
                 "message": "An unexpected error occurred while initializing the OpenAI API client.",
             }
 
+    def __prepare_crew_from_config(self, config: CrewConfig) -> PreparedCrew:
+        """Prepares the crew using the specified config and input data."""
+        agents_config = config.agents
+        tasks_config = config.tasks
+        crew_config = config.crew
+        inputs = config.input
+
+        input_data = {}
+        if isinstance(inputs, list):
+            for item in inputs:
+                item = item.model_dump()
+                input_data[item["key"]] = item["value"]
+
+        agents = []
+        for agent_config in agents_config:
+            agent_config_without_id = copy.deepcopy(agent_config.dict())
+            del agent_config_without_id["id"]
+            agent = Agent(**agent_config_without_id)
+            agents.append(agent)
+
+        tasks = []
+        for task_config in tasks_config:
+            task_config_without_agent = copy.deepcopy(task_config.model_dump())
+            del task_config_without_agent["agent"]
+            task_config_without_agent["tools"] = []  # TODO: Implement tools
+            agent = None
+            for a in agents_config:
+                if a.id == task_config.agent.id:
+                    agent_config_without_id = copy.deepcopy(a.dict())
+                    del agent_config_without_id["id"]
+                    agent = Agent(**agent_config_without_id, llm="gpt-4o")
+                    break
+            task = Task(**task_config_without_agent, agent=agent)
+            tasks.append(task)
+        crew = Crew(
+            agents=agents,
+            tasks=tasks,
+            verbose=crew_config.verbose,
+            memory=crew_config.memory,
+        )
+        return PreparedCrew(crew=crew, tasks=tasks, input_data=input_data)
+
     def run_crew_from_config(self, config: CrewConfig) -> CrewOutput:
         """Runs the crew using the specified config and input data."""
         try:
-            agents_config = config.agents
-            tasks_config = config.tasks
-            crew_config = config.crew
-            inputs = config.input
-
-            input_data = {}
-            if isinstance(inputs, list):
-                for item in inputs:
-                    item = item.model_dump()
-                    input_data[item["key"]] = item["value"]
-
-            agents = []
-            for agent_config in agents_config:
-                agent_config_without_id = copy.deepcopy(agent_config.dict())
-                del agent_config_without_id["id"]
-                agent = Agent(**agent_config_without_id)
-                agents.append(agent)
-
-            tasks = []
-            for task_config in tasks_config:
-                task_config_without_agent = copy.deepcopy(task_config.model_dump())
-                del task_config_without_agent["agent"]
-                task_config_without_agent["tools"] = []  # TODO: Implement tools
-                agent = None
-                for a in agents_config:
-                    if a.id == task_config.agent.id:
-                        agent_config_without_id = copy.deepcopy(a.dict())
-                        del agent_config_without_id["id"]
-                        agent = Agent(**agent_config_without_id, llm="gpt-4o")
-                        break
-                task = Task(**task_config_without_agent, agent=agent)
-                tasks.append(task)
-
-            crew = Crew(
-                agents=agents,
-                tasks=tasks,
-                verbose=crew_config.verbose,
-                memory=crew_config.memory,
-            )
-
-            result = crew.kickoff(inputs=input_data)
-            return result
+            prepared_crew = self.__prepare_crew_from_config(config)
+            crew = prepared_crew.crew
+            crew.kickoff(inputs=prepared_crew.input_data)
+            final_result = ""
+            for task in prepared_crew.tasks:
+                final_result += f"Task: {task.description}\n"
+                final_result += f"Output: {task.output.raw}\n"
+            return final_result
         except Exception as e:
             traceback.print_exc()
             return {
@@ -192,17 +210,22 @@ class Humanoid:
                 message="An unexpected error occurred while generating the crew configuration.",
             )
 
+    def pretty_print_config(self, config: CrewConfig) -> None:
+        """Pretty prints the crew configuration."""
+        rprint(Pretty(config.model_dump(), expand_all=True))
+
     def run(self, prompt: str) -> Any:
         """Runs the Humanoid with the specified prompt."""
         try:
             print(f"Running Humanoid with the following prompt: {prompt}")
             crew_config = self.generate_crew_config(prompt)
-            print("Crew Config: ", crew_config.model_dump_json())
             if isinstance(crew_config, GenerateCrewError):
                 return {
                     "error": crew_config.error,
                     "message": crew_config.message,
                 }
+            print("Crew Config: ")
+            self.pretty_print_config(crew_config)  # Call the pretty print method
             print("Running Crew from config...")
             return self.run_crew_from_config(crew_config)
         except Exception as e:
