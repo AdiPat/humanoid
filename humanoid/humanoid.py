@@ -89,18 +89,22 @@ class Humanoid:
 
     def __init__(self):
         """Initialize the Humanoid instance."""
+        rprint("🤖 [bold green]Initializing Humanoid...[/bold green]")
         init_result = self.init()
         if init_result.get("error"):
             raise Exception(
                 init_result.get("message") + " - Error:" + init_result.get("error")
             )
         self.ai: OpenAI = init_result.get("openai_client", None)
+        rprint("✅ [bold green]Humanoid initialized successfully![/bold green]")
 
     def init(self) -> dict:
         """Initializes the OpenAI API client."""
         try:
+            rprint("🔧 [bold blue]Loading environment variables...[/bold blue]")
             load_dotenv(dotenv_path=".env", override=True)
             api_key = os.getenv("OPENAI_API_KEY")
+            rprint("🔑 [bold blue]Initializing OpenAI API client...[/bold blue]")
             client = OpenAI(api_key=api_key)
             client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -112,11 +116,15 @@ class Humanoid:
                     {"role": "user", "content": "What's your response?"},
                 ],
             )
+            rprint(
+                "✅ [bold green]OpenAI API client initialized successfully![/bold green]"
+            )
             return {
                 "message": "OpenAI API client initialized successfully.",
                 "openai_client": client,
             }
         except Exception as e:
+            rprint("❌ [bold red]Failed to initialize OpenAI API client![/bold red]")
             return {
                 "error": str(e),
                 "message": "An unexpected error occurred while initializing the OpenAI API client.",
@@ -124,6 +132,7 @@ class Humanoid:
 
     def __prepare_crew_from_config(self, config: CrewConfig) -> PreparedCrew:
         """Prepares the crew using the specified config and input data."""
+        rprint("🛠️ [bold blue]Preparing crew from config...[/bold blue]")
         agents_config = config.agents
         tasks_config = config.tasks
         crew_config = config.crew
@@ -162,11 +171,13 @@ class Humanoid:
             verbose=crew_config.verbose,
             memory=crew_config.memory,
         )
+        rprint("✅ [bold green]Crew prepared successfully![/bold green]")
         return PreparedCrew(crew=crew, tasks=tasks, input_data=input_data)
 
     def run_crew_from_config(self, config: CrewConfig) -> CrewOutput:
         """Runs the crew using the specified config and input data."""
         try:
+            rprint("🚀 [bold blue]Running crew from config...[/bold blue]")
             prepared_crew = self.__prepare_crew_from_config(config)
             crew = prepared_crew.crew
             crew.kickoff(inputs=prepared_crew.input_data)
@@ -174,19 +185,24 @@ class Humanoid:
             for task in prepared_crew.tasks:
                 final_result += f"Task: {task.description}\n"
                 final_result += f"Output: {task.output.raw}\n"
+            rprint("✅ [bold green]Crew run successfully![/bold green]")
             return final_result
         except Exception as e:
+            rprint("❌ [bold red]Error running crew![/bold red]")
             traceback.print_exc()
-            return {
-                "error": str(e),
-                "message": "An unexpected error occurred while running the crew.",
-            }
+            return f"""
+            ## Error: Something went wrong! 😬
+            Error Details: 
+            
+            {str(e)}
+            """
 
     def generate_crew_config(
         self, crew_spec: str
     ) -> Union[CrewConfig, GenerateCrewError]:
         """Generates a crew configuration from the specified crew spec."""
         try:
+            rprint("📝 [bold blue]Generating crew configuration...[/bold blue]")
             prompt = f"""
             Generate a crew configuration from the following crew spec:
             Crew Spec: '''{crew_spec}'''
@@ -203,8 +219,12 @@ class Humanoid:
                 response_format=CrewConfig,
             )
             crew_config = response.choices[0].message.parsed
+            rprint(
+                "✅ [bold green]Crew configuration generated successfully![/bold green]"
+            )
             return crew_config
         except Exception as e:
+            rprint("❌ [bold red]Error generating crew configuration![/bold red]")
             return GenerateCrewError(
                 error=str(e),
                 message="An unexpected error occurred while generating the crew configuration.",
@@ -212,23 +232,27 @@ class Humanoid:
 
     def pretty_print_config(self, config: CrewConfig) -> None:
         """Pretty prints the crew configuration."""
+        rprint("📄 [bold blue]Pretty printing crew configuration...[/bold blue]")
         rprint(Pretty(config.model_dump(), expand_all=True))
 
     def run(self, prompt: str) -> Any:
         """Runs the Humanoid with the specified prompt."""
         try:
-            print(f"Running Humanoid with the following prompt: {prompt}")
+            rprint(
+                f"🏃 [bold blue]Running Humanoid with the following prompt: {prompt}[/bold blue]"
+            )
             crew_config = self.generate_crew_config(prompt)
             if isinstance(crew_config, GenerateCrewError):
                 return {
                     "error": crew_config.error,
                     "message": crew_config.message,
                 }
-            print("Crew Config: ")
+            rprint("🛠️ [bold blue]Crew Config: [/bold blue]")
             self.pretty_print_config(crew_config)  # Call the pretty print method
-            print("Running Crew from config...")
+            rprint("🚀 [bold blue]Running Crew from config...[/bold blue]")
             return self.run_crew_from_config(crew_config)
         except Exception as e:
+            rprint("❌ [bold red]Error running Humanoid![/bold red]")
             return {
                 "error": str(e),
                 "message": "An unexpected error occurred while running the crew.",
