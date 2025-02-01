@@ -25,7 +25,7 @@ def get_tools_list() -> list[str]:
     """
     Retrieves a list of all tools in the system.
     """
-    tools_list = ToolType.__members__.keys()
+    tools_list = list(ToolType.__members__.keys())
     return tools_list
 
 
